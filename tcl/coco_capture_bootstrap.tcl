@@ -3,7 +3,7 @@
 # Minimal Capture-side Tcl bridge for coco-connect-capture.
 # Line protocol (UTF-8):
 #   request:  id<TAB>cmd<TAB>arg<TAB>token\n
-#   response: id<TAB>ok|err<TAB>message\n
+#   response: id<TAB>json\n
 
 namespace eval ::coco_capture_bridge {
   variable host "127.0.0.1"
@@ -32,24 +32,31 @@ proc ::coco_capture_bridge::load_default_impl {} {
   }
 
   set dir [file normalize [file dirname [info script]]]
-  set impl_file [file join $dir highlight.tcl]
+  set loaded_any 0
+  foreach impl_name {utils.tcl highlight.tcl property.tcl} {
+    set impl_file [file join $dir $impl_name]
+    if {![file exists $impl_file]} {
+      continue
+    }
 
-  if {![file exists $impl_file]} {
-    return 0
+    source_utf8 $impl_file
+    set loaded_any 1
   }
 
-  source_utf8 $impl_file
-  set impl_loaded 1
-  return 1
+  if {$loaded_any} {
+    set impl_loaded 1
+    return 1
+  }
+
+  return 0
 }
 
-proc ::coco_capture_bridge::send_response {chan id status message} {
+proc ::coco_capture_bridge::send_response {chan id message} {
   set safe_id [sanitize_field $id]
-  set safe_status [sanitize_field $status]
   set safe_message [sanitize_field $message]
 
   catch {
-    puts $chan "${safe_id}\t${safe_status}\t${safe_message}"
+    puts $chan "${safe_id}\t${safe_message}"
     flush $chan
   }
   catch {close $chan}
@@ -60,7 +67,7 @@ proc ::coco_capture_bridge::highlight_net {net} {
     return [::coco_capture_highlight_net_impl $net]
   }
 
-  error "No net-highlight implementation found. Define ::coco_capture_highlight_net_impl net"
+  error [::coco_capture_utils::json_error "missing_impl" "No net-highlight implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "highlight_net"]]]]
 }
 
 proc ::coco_capture_bridge::highlight_part {part} {
@@ -68,7 +75,7 @@ proc ::coco_capture_bridge::highlight_part {part} {
     return [::coco_capture_highlight_part_impl $part]
   }
 
-  error "No part-highlight implementation found. Define ::coco_capture_highlight_part_impl part"
+  error [::coco_capture_utils::json_error "missing_impl" "No part-highlight implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "highlight_part"]]]]
 }
 
 proc ::coco_capture_bridge::clear_highlight {} {
@@ -76,25 +83,118 @@ proc ::coco_capture_bridge::clear_highlight {} {
     return [::coco_capture_clear_highlight_impl]
   }
 
-  error "No clear-highlight implementation found. Define ::coco_capture_clear_highlight_impl"
+  error [::coco_capture_utils::json_error "missing_impl" "No clear-highlight implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "clear_highlight"]]]]
+}
+
+proc ::coco_capture_bridge::list_part_properties {part} {
+  if {[llength [info commands ::coco_capture_list_part_properties_impl]] > 0} {
+    return [::coco_capture_list_part_properties_impl $part]
+  }
+
+  error [::coco_capture_utils::json_error "missing_impl" "No part-properties implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_properties"]]]]
+}
+
+proc ::coco_capture_bridge::split_property_arg {cmd arg min_fields} {
+  set fields [split $arg "|"]
+  if {[llength $fields] < $min_fields} {
+    error [::coco_capture_utils::json_error "invalid_arg" "arg format is invalid for $cmd" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command $cmd] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  return $fields
+}
+
+proc ::coco_capture_bridge::part_property_get {arg} {
+  if {[llength [info commands ::coco_capture_part_property_get_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-property-get implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_get"]]]]
+  }
+
+  set fields [split_property_arg "part_property_get" $arg 2]
+  set part [string trim [lindex $fields 0]]
+  set property_name [string trim [join [lrange $fields 1 end] "|"]]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_get"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$property_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "property is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_get"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_property_get_impl $part $property_name]
+}
+
+proc ::coco_capture_bridge::part_property_set {arg} {
+  if {[llength [info commands ::coco_capture_part_property_set_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-property-set implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_set"]]]]
+  }
+
+  set fields [split_property_arg "part_property_set" $arg 3]
+  set part [string trim [lindex $fields 0]]
+  set property_name [string trim [lindex $fields 1]]
+  set value [join [lrange $fields 2 end] "|"]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_set"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$property_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "property is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_set"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_property_set_impl $part $property_name $value]
+}
+
+proc ::coco_capture_bridge::part_property_delete {arg} {
+  if {[llength [info commands ::coco_capture_part_property_delete_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-property-delete implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_delete"]]]]
+  }
+
+  set fields [split_property_arg "part_property_delete" $arg 2]
+  set part [string trim [lindex $fields 0]]
+  set property_name [string trim [join [lrange $fields 1 end] "|"]]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_delete"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$property_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "property is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_delete"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_property_delete_impl $part $property_name]
+}
+
+proc ::coco_capture_bridge::part_property_display_mode {arg} {
+  if {[llength [info commands ::coco_capture_part_property_display_mode_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-property-display-mode implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_display_mode"]]]]
+  }
+
+  set fields [split_property_arg "part_property_display_mode" $arg 3]
+  set part [string trim [lindex $fields 0]]
+  set property_name [string trim [lindex $fields 1]]
+  set mode [string trim [join [lrange $fields 2 end] "|"]]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_display_mode"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$property_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "property is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_display_mode"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$mode eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "display mode is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_property_display_mode"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_property_display_mode_impl $part $property_name $mode]
 }
 
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
-      return "pong"
+      return [::coco_capture_utils::json_success [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "ping"] [::coco_capture_utils::json_field_string message "pong"]]]]
     }
     highlight_net {
       set net [string trim $arg]
       if {$net eq ""} {
-        error "net is required"
+        error [::coco_capture_utils::json_error "invalid_arg" "net is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "highlight_net"]]]]
       }
       return [highlight_net $net]
     }
     highlight_part {
       set part [string trim $arg]
       if {$part eq ""} {
-        error "part is required"
+        error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "highlight_part"]]]]
       }
       return [highlight_part $part]
     }
@@ -104,8 +204,28 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     unhighlight {
       return [clear_highlight]
     }
+    list_part_properties -
+    part_properties {
+      set part [string trim $arg]
+      if {$part eq ""} {
+        error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_properties"]]]]
+      }
+      return [list_part_properties $part]
+    }
+    part_property_get {
+      return [part_property_get $arg]
+    }
+    part_property_set {
+      return [part_property_set $arg]
+    }
+    part_property_delete {
+      return [part_property_delete $arg]
+    }
+    part_property_display_mode {
+      return [part_property_display_mode $arg]
+    }
     default {
-      error "Unknown command '$cmd'"
+      error [::coco_capture_utils::json_error "unknown_command" "Unknown command '$cmd'" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command $cmd]]]]
     }
   }
 }
@@ -125,7 +245,7 @@ proc ::coco_capture_bridge::on_readable {chan} {
 
   set fields [split $line "\t"]
   if {[llength $fields] < 4} {
-    send_response $chan "" "err" "Malformed request"
+    send_response $chan "" [::coco_capture_utils::json_error "malformed_request" "Malformed request"]
     return
   }
 
@@ -135,16 +255,16 @@ proc ::coco_capture_bridge::on_readable {chan} {
   set req_token [lindex $fields 3]
 
   if {$token ne "" && $req_token ne $token} {
-    send_response $chan $id "err" "AUTH_FAILED"
+    send_response $chan $id [::coco_capture_utils::json_error "auth_failed" "AUTH_FAILED"]
     return
   }
 
   if {[catch {set out [dispatch $cmd $arg]} err]} {
-    send_response $chan $id "err" $err
+    send_response $chan $id [::coco_capture_utils::ensure_error_json $err]
     return
   }
 
-  send_response $chan $id "ok" $out
+  send_response $chan $id $out
 }
 
 proc ::coco_capture_bridge::on_accept {chan addr remote_port} {
