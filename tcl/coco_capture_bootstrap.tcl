@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl net.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -179,6 +179,25 @@ proc ::coco_capture_bridge::part_property_display_mode {arg} {
   return [::coco_capture_part_property_display_mode_impl $part $property_name $mode]
 }
 
+proc ::coco_capture_bridge::rename_net {arg} {
+  if {[llength [info commands ::coco_capture_rename_net_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No rename-net implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "rename_net"]]]]
+  }
+
+  set fields [split_property_arg "rename_net" $arg 2]
+  set old_name [string trim [lindex $fields 0]]
+  set new_name [string trim [lindex $fields 1]]
+
+  if {$old_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "old net name is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "rename_net"]]]]
+  }
+  if {$new_name eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "new net name is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "rename_net"]]]]
+  }
+
+  return [::coco_capture_rename_net_impl $old_name $new_name]
+}
+
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
@@ -223,6 +242,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     part_property_display_mode {
       return [part_property_display_mode $arg]
+    }
+    rename_net {
+      return [rename_net $arg]
     }
     default {
       error [::coco_capture_utils::json_error "unknown_command" "Unknown command '$cmd'" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command $cmd]]]]
