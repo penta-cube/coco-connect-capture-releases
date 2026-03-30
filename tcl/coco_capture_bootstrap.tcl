@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl net.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl move.tcl net.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -179,6 +179,58 @@ proc ::coco_capture_bridge::part_property_display_mode {arg} {
   return [::coco_capture_part_property_display_mode_impl $part $property_name $mode]
 }
 
+proc ::coco_capture_bridge::split_move_arg {cmd arg} {
+  set fields [split $arg "|"]
+  if {[llength $fields] < 3} {
+    error [::coco_capture_utils::json_error "invalid_arg" "arg format is invalid for $cmd" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command $cmd] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  return $fields
+}
+
+proc ::coco_capture_bridge::part_move_absolute {arg} {
+  if {[llength [info commands ::coco_capture_part_move_absolute_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-move-absolute implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_absolute"]]]]
+  }
+
+  set fields [split_move_arg "part_move_absolute" $arg]
+  set part [string trim [lindex $fields 0]]
+  set x [string trim [lindex $fields 1]]
+  set y [string trim [join [lrange $fields 2 end] "|"]]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_absolute"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$x eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "x is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_absolute"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$y eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "y is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_absolute"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_move_absolute_impl $part $x $y]
+}
+
+proc ::coco_capture_bridge::part_move_relative {arg} {
+  if {[llength [info commands ::coco_capture_part_move_relative_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No part-move-relative implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_relative"]]]]
+  }
+
+  set fields [split_move_arg "part_move_relative" $arg]
+  set part [string trim [lindex $fields 0]]
+  set dx [string trim [lindex $fields 1]]
+  set dy [string trim [join [lrange $fields 2 end] "|"]]
+  if {$part eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "refdes is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_relative"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$dx eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "dx is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_relative"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+  if {$dy eq ""} {
+    error [::coco_capture_utils::json_error "invalid_arg" "dy is required" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "part_move_relative"] [::coco_capture_utils::json_field_string arg $arg]]]]
+  }
+
+  return [::coco_capture_part_move_relative_impl $part $dx $dy]
+}
+
 proc ::coco_capture_bridge::rename_net {arg} {
   if {[llength [info commands ::coco_capture_rename_net_impl]] == 0} {
     error [::coco_capture_utils::json_error "missing_impl" "No rename-net implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "rename_net"]]]]
@@ -242,6 +294,12 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     part_property_display_mode {
       return [part_property_display_mode $arg]
+    }
+    part_move_absolute {
+      return [part_move_absolute $arg]
+    }
+    part_move_relative {
+      return [part_move_relative $arg]
     }
     rename_net {
       return [rename_net $arg]
