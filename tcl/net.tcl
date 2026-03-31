@@ -2,10 +2,6 @@
 
 proc ::coco_capture_rename_net_impl {old_name new_name} {
 
-    puts "DEBUG: ==== START rename_net_impl ===="
-    puts "DEBUG: old='$old_name', new='$new_name'"
-    flush stdout
-
     set old_name [string trim $old_name]
     set new_name [string trim $new_name]
 
@@ -32,18 +28,12 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
         set view [$schem_iter NextView $status]
         if {$view eq $null_obj || [::coco_capture_utils::is_null $view]} break
 
-        set view_name [::coco_capture_utils::name $view]
-        puts "DEBUG: View: $view_name"
-
         set schematic [::coco_capture_utils::to_schematic $view]
         set pages_iter [$schematic NewPagesIter $status]
 
         while {1} {
             set page [$pages_iter NextPage $status]
             if {$page eq $null_obj || [::coco_capture_utils::is_null $page]} break
-
-            set page_name [::coco_capture_utils::name $page]
-            puts "DEBUG: Page: $page_name"
 
             # =========================
             # 1. PORT 처리
@@ -58,20 +48,15 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
                     if {[catch {$port GetName $name_cstr}]} continue
 
                     set pname [DboTclHelper_sGetConstCharPtr $name_cstr]
-                    puts "DEBUG: Port: $pname"
 
                     if {$pname eq $old_name} {
-                        puts "DEBUG: >>> PORT MATCH"
-
                         set new_cstr [DboTclHelper_sMakeCString $new_name]
 
                         if {![catch {$port SetName $new_cstr}]} {
                             incr updated
-                            puts "DEBUG: PORT renamed"
 
                             # Port 변경 후 연결된 Net 업데이트
                             if {![catch {set net [$port GetNet $status]} err] && ![::coco_capture_utils::is_null $net]} {
-                                puts "DEBUG: Updating connected Net..."
                                 catch {$net UpdateNetName $status}
                             }
                         }
@@ -94,16 +79,12 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
                     if {[catch {$global GetName $name_cstr}]} continue
 
                     set gname [DboTclHelper_sGetConstCharPtr $name_cstr]
-                    puts "DEBUG: Global: $gname"
 
                     if {$gname eq $old_name} {
-                        puts "DEBUG: >>> GLOBAL MATCH"
-
                         set new_cstr [DboTclHelper_sMakeCString $new_name]
 
                         if {![catch {$global SetName $new_cstr}]} {
                             incr updated
-                            puts "DEBUG: GLOBAL renamed"
                         }
                     }
                 }
@@ -131,16 +112,12 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
                         if {[catch {$dprop GetValue $val_cstr}]} continue
 
                         set val [DboTclHelper_sGetConstCharPtr $val_cstr]
-                        puts "DEBUG: Prop Value: $val"
 
                         if {$val eq $old_name} {
-                            puts "DEBUG: >>> ALIAS MATCH"
-
                             set new_cstr [DboTclHelper_sMakeCString $new_name]
 
                             if {![catch {$dprop SetValue $new_cstr}]} {
                                 incr updated
-                                puts "DEBUG: ALIAS renamed"
                             }
                         }
                     }
@@ -157,18 +134,9 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
 
     ::coco_capture_utils::safe_delete delete_DboViewIter $schem_iter
 
-    puts "DEBUG: ==== DONE updated=$updated ===="
-    flush stdout
-
     if {$updated == 0} {
         return [::coco_capture_utils::json_error "No matching Port / Global / Alias found for net: $old_name"]
     }
-
-    puts "DEBUG: Triggering connectivity update..."
-    flush stdout
-
-    puts "DEBUG: Rebuilding connectivity..."
-    flush stdout
 
     catch {$design UpdateConnectivity $status}
     catch {$design Check $status}
