@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl move.tcl net.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl move.tcl net.tcl auto_arrange_text.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -250,6 +250,15 @@ proc ::coco_capture_bridge::rename_net {arg} {
   return [::coco_capture_rename_net_impl $old_name $new_name]
 }
 
+proc ::coco_capture_bridge::auto_arrange_text {page} {
+  if {[llength [info commands ::coco_auto_arrange_text_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No auto-arrange-text implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "auto_arrange_text"]]]]
+  }
+
+  return [::coco_auto_arrange_text_impl $page]
+}
+
+
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
@@ -304,6 +313,10 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     rename_net {
       return [rename_net $arg]
     }
+    auto_arrange_text {
+      return [auto_arrange_text [string trim $arg]]
+    }
+
     default {
       error [::coco_capture_utils::json_error "unknown_command" "Unknown command '$cmd'" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command $cmd]]]]
     }
