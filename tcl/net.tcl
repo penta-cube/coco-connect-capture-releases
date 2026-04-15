@@ -135,7 +135,12 @@ proc ::coco_capture_rename_net_impl {old_name new_name} {
     ::coco_capture_utils::safe_delete delete_DboViewIter $schem_iter
 
     if {$updated == 0} {
-        return [::coco_capture_utils::json_error "No matching Port / Global / Alias found for net: $old_name"]
+        error [::coco_capture_utils::json_error \
+            "not_found" \
+            "No matching Port / Global / Alias found for net: $old_name" \
+            [::coco_capture_utils::json_object_from_pairs [list \
+                [::coco_capture_utils::json_field_string command "rename_net"] \
+                [::coco_capture_utils::json_field_string old_name $old_name]]]]
     }
 
     catch {$design UpdateConnectivity $status}
