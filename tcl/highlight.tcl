@@ -112,13 +112,6 @@ proc ::highlight::_clear {} {
     return 0
 }
 
-proc ::highlight::_zoom_selection {} {
-    if {[::coco_capture_utils::cmd_exists ZoomSelection] && ![catch {ZoomSelection}]} {
-        return 1
-    }
-    return 0
-}
-
 proc ::highlight::_select_part_on_active_page {refdes} {
     if {![::coco_capture_utils::cmd_exists GetActivePage] || ![::coco_capture_utils::cmd_exists SelectObjectById]} {
         error "GetActivePage/SelectObjectById command is not available"
@@ -452,14 +445,10 @@ proc ::highlight::_highlight_pages {pages select_proc select_arg} {
             continue
         }
         incr selected_count $page_selected
-        if {$page_selected > 0} {
-            catch {_zoom_selection}
-        }
     }
 
     if {$first_page ne ""} {
         catch {_activate_match_page $first_page}
-        catch {_zoom_selection}
     }
 
     if {$selected_count > 0} {
