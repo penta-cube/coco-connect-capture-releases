@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl move.tcl net.tcl auto_arrange_text.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -258,6 +258,22 @@ proc ::coco_capture_bridge::auto_arrange_text {page} {
   return [::coco_auto_arrange_text_impl $page]
 }
 
+proc ::coco_capture_bridge::zoom_selection {} {
+  if {[llength [info commands ::coco_capture_zoom_selection_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No zoom-selection implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "zoom_selection"]]]]
+  }
+
+  return [::coco_capture_zoom_selection_impl]
+}
+
+proc ::coco_capture_bridge::zoom_fit {} {
+  if {[llength [info commands ::coco_capture_zoom_fit_impl]] == 0} {
+    error [::coco_capture_utils::json_error "missing_impl" "No zoom-fit implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "zoom_fit"]]]]
+  }
+
+  return [::coco_capture_zoom_fit_impl]
+}
+
 
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
@@ -315,6 +331,12 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     auto_arrange_text {
       return [auto_arrange_text [string trim $arg]]
+    }
+    zoom_selection {
+      return [zoom_selection]
+    }
+    zoom_fit {
+      return [zoom_fit]
     }
 
     default {

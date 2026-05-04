@@ -12,6 +12,7 @@ Release assets and runtime scripts for `coco-connect-capture`.
   - `tcl/highlight.tcl`
   - `tcl/property.tcl`
   - `tcl/move.tcl`
+  - `tcl/zoom.tcl`
 
 ## Bridge Commands
 
@@ -25,6 +26,8 @@ Release assets and runtime scripts for `coco-connect-capture`.
 - `part_property_display_mode <REFDES>|<PROPERTY_NAME>|<hidden|value_only|name_and_value>`
 - `part_move_absolute <REFDES>|<X>|<Y>`
 - `part_move_relative <REFDES>|<DX>|<DY>`
+- `zoom_selection`
+- `zoom_fit`
 
 Property and move commands use `|` as the argument separator because the line protocol has a
 single argument field. `part_property_set` treats everything after the second `|`
@@ -44,6 +47,8 @@ part_property_display_mode U1 {COCO_TEST_PROP} hidden
 part_property_delete U1 {COCO_TEST_PROP}
 part_move_absolute U1 1200 3400
 part_move_relative U1 200 -100
+zoom_selection
+zoom_fit
 ```
 
 Bridge command argument examples:
@@ -58,6 +63,8 @@ part_property_display_mode U1|COCO_TEST_PROP|hidden
 part_property_delete U1|COCO_TEST_PROP
 part_move_absolute U1|1200|3400
 part_move_relative U1|200|-100
+zoom_selection
+zoom_fit
 ```
 
 ## Response Format
