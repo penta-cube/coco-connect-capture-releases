@@ -4,10 +4,10 @@
 # schematic page. Searches each part's reference designator and the values of
 # its effective properties, using a case-insensitive substring match.
 #
-# Replace (mutation) is intentionally NOT implemented yet; see the feature plan.
-# Object-type coverage beyond part instances (ports, off-page connectors,
-# comment text, wire aliases) is added in a later increment once the matching
-# DBO iterators are verified against a live Capture session.
+# find_replace (increment 2+) adds mutation; later increments broaden object-type
+# coverage: ports/off-page/globals (increment 3) and comment graphic text
+# (increment 4). Remaining types (e.g. wire aliases) follow once their DBO
+# iterators are verified against a live Capture session.
 
 namespace eval ::find_replace {
 }
@@ -270,9 +270,51 @@ proc ::find_replace::_scan_named {object_type page status new_method next_method
     }
 }
 
-# find_replace (increment 3): find/replace text across object types
+# Comment graphic text: match+replace via the comment-text getter chain. Unlike
+# named objects, the displayed string lives on the DboCommentText definition
+# (not GetName), reached through DboGraphicInstanceToDboGraphicCommentTextInst ->
+# GetDboCommentText -> GetText/SetText. Free-form text is preserved verbatim
+# (not trimmed) so surrounding whitespace survives a substring replace.
+proc ::find_replace::_try_comment {obj query replacement match_mode apply page_path changes_var} {
+    upvar 1 $changes_var changes
+    if {[catch {set textInst [DboGraphicInstanceToDboGraphicCommentTextInst $obj]}]} { return }
+    if {[::coco_capture_utils::is_null $textInst]} { return }
+    if {[catch {set textDef [$textInst GetDboCommentText]}]} { return }
+    if {[::coco_capture_utils::is_null $textDef]} { return }
+    if {[catch {set c [DboTclHelper_sMakeCString]}]} { return }
+    if {[catch {$textDef GetText $c}]} { return }
+    set text [DboTclHelper_sGetConstCharPtr $c]
+    if {$text eq ""} { return }
+    lassign [_eval $text $query $replacement $match_mode] matched newtext
+    if {!$matched} { return }
+    if {$apply} {
+        catch {set nc [DboTclHelper_sMakeCString $newtext]}
+        catch {$textDef SetText $nc}
+        catch {$textDef SetRecalBoundingBox}
+        catch {$textInst MarkModified}
+    }
+    lappend changes [_change_obj "comment" "" "text" $text $newtext $page_path]
+}
+
+# Iterate comment graphics on a page and try replace on each.
+proc ::find_replace::_scan_comment {page status query replacement match_mode apply \
+        page_path scanned_var changes_var} {
+    upvar 1 $scanned_var scanned
+    upvar 1 $changes_var changes
+    if {[catch {set it [$page NewCommentGraphicsIter $status]}]} { return }
+    while {1} {
+        if {[catch {set obj [$it NextCommentGraphic $status]}]} { break }
+        if {$obj eq "NULL"} { break }
+        incr scanned
+        _try_comment $obj $query $replacement $match_mode $apply $page_path changes
+    }
+    ::coco_capture_utils::safe_delete delete_DboPageCommentGraphicsIter $it
+}
+
+# find_replace (increment 4): find/replace text across object types
 #   - part      -> displayed text (DboDisplayProp)
 #   - port / offpage / global -> object name (GetName/SetName)
+#   - comment   -> comment graphic text (GetDboCommentText/GetText/SetText)
 # scope: active_page (default) | all (every page in the design)
 proc ::find_replace::find_replace {query replacement mode match_mode scope} {
     set query [string trim $query]
@@ -344,6 +386,10 @@ proc ::find_replace::find_replace {query replacement mode match_mode scope} {
             _scan_named offpage $page $status NewOffPageConnectorsIter NextOffPageConnector \
                 $query $replacement $match_mode $apply $page_path scanned changes
             _scan_named global $page $status NewGlobalsIter NextGlobal \
+                $query $replacement $match_mode $apply $page_path scanned changes
+
+            # 3. comment graphic text (free text, getter-chain based)
+            _scan_comment $page $status \
                 $query $replacement $match_mode $apply $page_path scanned changes
         }
         ::coco_capture_utils::safe_delete delete_DboSchematicPagesIter $pages_iter
