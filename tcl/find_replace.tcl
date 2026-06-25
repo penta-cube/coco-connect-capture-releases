@@ -207,7 +207,7 @@ proc ::find_replace::_change_obj {refdes field old new page_path} {
         [::coco_capture_utils::json_field_string page_path $page_path]]]
 }
 
-proc ::find_replace::find_replace {query replacement mode} {
+proc ::find_replace::find_replace {query replacement mode match_mode} {
     set query [string trim $query]
     if {$query eq ""} {
         error [::coco_capture_utils::json_error "invalid_arg" "query is required" \
@@ -215,6 +215,7 @@ proc ::find_replace::find_replace {query replacement mode} {
                 [::coco_capture_utils::json_field_string command "find_replace"]]]]
     }
     set apply [expr {$mode eq "apply"}]
+    if {$match_mode ne "whole"} { set match_mode "substring" }
 
     set status [::coco_capture_utils::status]
     set session [::coco_capture_utils::session]
@@ -259,8 +260,15 @@ proc ::find_replace::find_replace {query replacement mode} {
                     if {[catch {set dp [$dp_iter NextProp $status]}]} { break }
                     if {$dp eq $null_obj} { break }
                     set text [_disp_text $dp]
-                    if {![_contains $text $query]} { continue }
-                    set newtext [_replace_ci $text $query $replacement]
+                    if {$match_mode eq "whole"} {
+                        # whole-field: replace only when the entire displayed text
+                        # equals the query (case-insensitive), then swap it wholesale.
+                        if {![string equal -nocase $text $query]} { continue }
+                        set newtext $replacement
+                    } else {
+                        if {![_contains $text $query]} { continue }
+                        set newtext [_replace_ci $text $query $replacement]
+                    }
                     if {$apply} {
                         catch {set nc [DboTclHelper_sMakeCString $newtext]}
                         catch {$dp SetValueString $nc}
@@ -284,6 +292,7 @@ proc ::find_replace::find_replace {query replacement mode} {
         [::coco_capture_utils::json_field_string page_path $scanned_page_path] \
         [::coco_capture_utils::json_field_string query $query] \
         [::coco_capture_utils::json_field_string replacement $replacement] \
+        [::coco_capture_utils::json_field_string match_mode $match_mode] \
         [::coco_capture_utils::json_field_number scanned_parts $scanned] \
         [::coco_capture_utils::json_field_number match_count [llength $changes]] \
         [::coco_capture_utils::json_field_json changes \
@@ -291,12 +300,16 @@ proc ::find_replace::find_replace {query replacement mode} {
     return [::coco_capture_utils::json_success $data]
 }
 
-# Impl entry: arg = query|replacement|mode  (mode optional, defaults dry_run)
+# Impl entry: arg = query|replacement|mode|match_mode
+#   mode: dry_run (default) | apply
+#   match_mode: substring (default) | whole
 proc ::coco_capture_find_replace_impl {arg} {
     set parts [split $arg "|"]
     set query [lindex $parts 0]
     set replacement [lindex $parts 1]
     set mode [lindex $parts 2]
+    set match_mode [lindex $parts 3]
     if {$mode eq ""} { set mode "dry_run" }
-    return [::find_replace::find_replace $query $replacement $mode]
+    if {$match_mode eq ""} { set match_mode "substring" }
+    return [::find_replace::find_replace $query $replacement $mode $match_mode]
 }
