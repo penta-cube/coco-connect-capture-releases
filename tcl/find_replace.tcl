@@ -198,8 +198,9 @@ proc ::find_replace::_replace_ci {text query replacement} {
     return $out
 }
 
-proc ::find_replace::_change_obj {refdes field old new page_path} {
+proc ::find_replace::_change_obj {object_type refdes field old new page_path} {
     return [::coco_capture_utils::json_object_from_pairs [list \
+        [::coco_capture_utils::json_field_string object_type $object_type] \
         [::coco_capture_utils::json_field_string refdes $refdes] \
         [::coco_capture_utils::json_field_string field $field] \
         [::coco_capture_utils::json_field_string old $old] \
@@ -207,7 +208,73 @@ proc ::find_replace::_change_obj {refdes field old new page_path} {
         [::coco_capture_utils::json_field_string page_path $page_path]]]
 }
 
-proc ::find_replace::find_replace {query replacement mode match_mode} {
+# Shared match/replace decision. Returns {matched newtext}.
+proc ::find_replace::_eval {text query replacement match_mode} {
+    if {$match_mode eq "whole"} {
+        if {[string equal -nocase $text $query]} { return [list 1 $replacement] }
+        return [list 0 ""]
+    }
+    if {[_contains $text $query]} { return [list 1 [_replace_ci $text $query $replacement]] }
+    return [list 0 ""]
+}
+
+# Object name via GetName (port / offpage / global).
+proc ::find_replace::_get_name {obj} {
+    if {[catch {set c [DboTclHelper_sMakeCString]}]} { return "" }
+    if {[catch {$obj GetName $c}]} { return "" }
+    return [string trim [DboTclHelper_sGetConstCharPtr $c]]
+}
+
+# Part display prop: match+replace via GetActualValueString/SetValueString.
+proc ::find_replace::_try_disp {refdes dp query replacement match_mode apply page_path changes_var} {
+    upvar 1 $changes_var changes
+    set text [_disp_text $dp]
+    lassign [_eval $text $query $replacement $match_mode] matched newtext
+    if {!$matched} { return }
+    if {$apply} {
+        catch {set nc [DboTclHelper_sMakeCString $newtext]}
+        catch {$dp SetValueString $nc}
+        catch {$dp MarkModified}
+        catch {$dp SetBoundingBoxDirty 1}
+    }
+    lappend changes [_change_obj "part" $refdes [_disp_name $dp] $text $newtext $page_path]
+}
+
+# Name-based object (port / offpage / global): match+replace via GetName/SetName.
+proc ::find_replace::_try_named {object_type obj query replacement match_mode apply page_path changes_var} {
+    upvar 1 $changes_var changes
+    set text [_get_name $obj]
+    if {$text eq ""} { return }
+    lassign [_eval $text $query $replacement $match_mode] matched newtext
+    if {!$matched} { return }
+    if {$apply} {
+        catch {set nc [DboTclHelper_sMakeCString $newtext]}
+        catch {$obj SetName $nc}
+        catch {$obj MarkModified}
+        catch {$obj SetBoundingBoxDirty 1}
+    }
+    lappend changes [_change_obj $object_type "" "name" $text $newtext $page_path]
+}
+
+# Iterate a name-based collection on a page and try replace on each.
+proc ::find_replace::_scan_named {object_type page status new_method next_method \
+        query replacement match_mode apply page_path scanned_var changes_var} {
+    upvar 1 $scanned_var scanned
+    upvar 1 $changes_var changes
+    if {[catch {set it [$page $new_method $status]}]} { return }
+    while {1} {
+        if {[catch {set obj [$it $next_method $status]}]} { break }
+        if {$obj eq "NULL"} { break }
+        incr scanned
+        _try_named $object_type $obj $query $replacement $match_mode $apply $page_path changes
+    }
+}
+
+# find_replace (increment 3): find/replace text across object types
+#   - part      -> displayed text (DboDisplayProp)
+#   - port / offpage / global -> object name (GetName/SetName)
+# scope: active_page (default) | all (every page in the design)
+proc ::find_replace::find_replace {query replacement mode match_mode scope} {
     set query [string trim $query]
     if {$query eq ""} {
         error [::coco_capture_utils::json_error "invalid_arg" "query is required" \
@@ -216,18 +283,22 @@ proc ::find_replace::find_replace {query replacement mode match_mode} {
     }
     set apply [expr {$mode eq "apply"}]
     if {$match_mode ne "whole"} { set match_mode "substring" }
+    if {$scope ne "all"} { set scope "active_page" }
 
     set status [::coco_capture_utils::status]
     set session [::coco_capture_utils::session]
     set design [::coco_capture_utils::active_design $session $status]
     set null_obj "NULL"
 
-    set active_page_name [_active_page_name]
-    set scope [expr {$active_page_name eq "" ? "all_pages" : "active_page"}]
+    set active_page_name ""
+    if {$scope eq "active_page"} {
+        set active_page_name [_active_page_name]
+        if {$active_page_name eq ""} { set scope "all" }
+    }
 
     set changes {}
     set scanned 0
-    set scanned_page_path ""
+    set pages 0
 
     set schem_iter [::coco_capture_utils::schem_iter $design $status]
     while {1} {
@@ -242,44 +313,38 @@ proc ::find_replace::find_replace {query replacement mode match_mode} {
             set page_name [::coco_capture_utils::name $page]
             if {$active_page_name ne "" && ![string equal $page_name $active_page_name]} { continue }
             set page_path [::coco_capture_utils::page_path $schematic_name $page_name]
-            set scanned_page_path $page_path
-            if {[catch {set part_iter [$page NewPartInstsIter $status]}]} { continue }
-            while {1} {
-                if {[catch {set inst [$part_iter NextPartInst $status]}]} { break }
-                if {$inst eq $null_obj} { break }
-                set placed_inst $inst
-                if {[::coco_capture_utils::cmd_exists DboPartInstToDboPlacedInst]} {
-                    set placed_inst [DboPartInstToDboPlacedInst $inst]
-                }
-                if {[::coco_capture_utils::is_null $placed_inst]} { continue }
-                incr scanned
-                set refdes [::coco_capture_utils::refdes $placed_inst]
+            incr pages
 
-                if {[catch {set dp_iter [$placed_inst NewDisplayPropsIter $status]}]} { continue }
+            # 1. parts -> display props
+            if {![catch {set part_iter [$page NewPartInstsIter $status]}]} {
                 while {1} {
-                    if {[catch {set dp [$dp_iter NextProp $status]}]} { break }
-                    if {$dp eq $null_obj} { break }
-                    set text [_disp_text $dp]
-                    if {$match_mode eq "whole"} {
-                        # whole-field: replace only when the entire displayed text
-                        # equals the query (case-insensitive), then swap it wholesale.
-                        if {![string equal -nocase $text $query]} { continue }
-                        set newtext $replacement
-                    } else {
-                        if {![_contains $text $query]} { continue }
-                        set newtext [_replace_ci $text $query $replacement]
+                    if {[catch {set inst [$part_iter NextPartInst $status]}]} { break }
+                    if {$inst eq $null_obj} { break }
+                    set placed_inst $inst
+                    if {[::coco_capture_utils::cmd_exists DboPartInstToDboPlacedInst]} {
+                        set placed_inst [DboPartInstToDboPlacedInst $inst]
                     }
-                    if {$apply} {
-                        catch {set nc [DboTclHelper_sMakeCString $newtext]}
-                        catch {$dp SetValueString $nc}
-                        catch {$dp MarkModified}
-                        catch {$dp SetBoundingBoxDirty 1}
+                    if {[::coco_capture_utils::is_null $placed_inst]} { continue }
+                    incr scanned
+                    set refdes [::coco_capture_utils::refdes $placed_inst]
+                    if {[catch {set dp_iter [$placed_inst NewDisplayPropsIter $status]}]} { continue }
+                    while {1} {
+                        if {[catch {set dp [$dp_iter NextProp $status]}]} { break }
+                        if {$dp eq $null_obj} { break }
+                        _try_disp $refdes $dp $query $replacement $match_mode $apply $page_path changes
                     }
-                    lappend changes [_change_obj $refdes [_disp_name $dp] $text $newtext $page_path]
+                    ::coco_capture_utils::safe_delete delete_DboDisplayPropsIter $dp_iter
                 }
-                ::coco_capture_utils::safe_delete delete_DboDisplayPropsIter $dp_iter
+                ::coco_capture_utils::safe_delete delete_DboPagePartInstsIter $part_iter
             }
-            ::coco_capture_utils::safe_delete delete_DboPagePartInstsIter $part_iter
+
+            # 2. ports / offpage / globals (name-based)
+            _scan_named port $page $status NewPortsIter NextPort \
+                $query $replacement $match_mode $apply $page_path scanned changes
+            _scan_named offpage $page $status NewOffPageConnectorsIter NextOffPageConnector \
+                $query $replacement $match_mode $apply $page_path scanned changes
+            _scan_named global $page $status NewGlobalsIter NextGlobal \
+                $query $replacement $match_mode $apply $page_path scanned changes
         }
         ::coco_capture_utils::safe_delete delete_DboSchematicPagesIter $pages_iter
     }
@@ -289,27 +354,30 @@ proc ::find_replace::find_replace {query replacement mode match_mode} {
         [::coco_capture_utils::json_field_string command "find_replace"] \
         [::coco_capture_utils::json_field_string mode [expr {$apply ? "apply" : "dry_run"}]] \
         [::coco_capture_utils::json_field_string scope $scope] \
-        [::coco_capture_utils::json_field_string page_path $scanned_page_path] \
         [::coco_capture_utils::json_field_string query $query] \
         [::coco_capture_utils::json_field_string replacement $replacement] \
         [::coco_capture_utils::json_field_string match_mode $match_mode] \
-        [::coco_capture_utils::json_field_number scanned_parts $scanned] \
+        [::coco_capture_utils::json_field_number pages_scanned $pages] \
+        [::coco_capture_utils::json_field_number scanned_objects $scanned] \
         [::coco_capture_utils::json_field_number match_count [llength $changes]] \
         [::coco_capture_utils::json_field_json changes \
             [::coco_capture_utils::json_array_from_values $changes]]]]
     return [::coco_capture_utils::json_success $data]
 }
 
-# Impl entry: arg = query|replacement|mode|match_mode
+# Impl entry: arg = query|replacement|mode|match_mode|scope
 #   mode: dry_run (default) | apply
 #   match_mode: substring (default) | whole
+#   scope: active_page (default) | all
 proc ::coco_capture_find_replace_impl {arg} {
     set parts [split $arg "|"]
     set query [lindex $parts 0]
     set replacement [lindex $parts 1]
     set mode [lindex $parts 2]
     set match_mode [lindex $parts 3]
+    set scope [lindex $parts 4]
     if {$mode eq ""} { set mode "dry_run" }
     if {$match_mode eq ""} { set match_mode "substring" }
-    return [::find_replace::find_replace $query $replacement $mode $match_mode]
+    if {$scope eq ""} { set scope "active_page" }
+    return [::find_replace::find_replace $query $replacement $mode $match_mode $scope]
 }
