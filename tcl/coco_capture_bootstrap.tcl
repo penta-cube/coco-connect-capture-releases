@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl get_text_objects.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -296,6 +296,13 @@ proc ::coco_capture_bridge::list_offpage_connectors {arg} {
   error [::coco_capture_utils::json_error "missing_impl" "No list-offpage-connectors implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "list_offpage_connectors"]]]]
 }
 
+proc ::coco_capture_bridge::get_text_objects {arg} {
+  if {[llength [info commands ::coco_capture_get_text_objects_impl]] > 0} {
+    return [::coco_capture_get_text_objects_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No get-text-objects implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "get_text_objects"]]]]
+}
+
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
@@ -367,6 +374,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     list_offpage_connectors {
       return [list_offpage_connectors $arg]
+    }
+    get_text_objects {
+      return [get_text_objects $arg]
     }
 
     default {
