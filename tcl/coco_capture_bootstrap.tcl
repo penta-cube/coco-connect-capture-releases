@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl get_text_objects.tcl rename_offpage.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl get_text_objects.tcl rename_offpage.tcl change_offpage_direction.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -282,6 +282,13 @@ proc ::coco_capture_bridge::find_text {query} {
   error [::coco_capture_utils::json_error "missing_impl" "No find-text implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_text"]]]]
 }
 
+proc ::coco_capture_bridge::change_offpage_direction {arg} {
+  if {[llength [info commands ::coco_capture_change_offpage_direction_impl]] > 0} {
+    return [::coco_capture_change_offpage_direction_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No change-offpage-direction implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "change_offpage_direction"]]]]
+}
+
 proc ::coco_capture_bridge::rename_offpage_connectors {arg} {
   if {[llength [info commands ::coco_capture_rename_offpage_connectors_impl]] > 0} {
     return [::coco_capture_rename_offpage_connectors_impl $arg]
@@ -382,6 +389,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     find_text {
       return [find_text [string trim $arg]]
+    }
+    change_offpage_direction {
+      return [change_offpage_direction $arg]
     }
     rename_offpage_connectors {
       return [rename_offpage_connectors $arg]
