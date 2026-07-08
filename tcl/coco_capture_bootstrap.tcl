@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -282,6 +282,20 @@ proc ::coco_capture_bridge::find_text {query} {
   error [::coco_capture_utils::json_error "missing_impl" "No find-text implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_text"]]]]
 }
 
+proc ::coco_capture_bridge::list_ports {arg} {
+  if {[llength [info commands ::coco_capture_list_ports_impl]] > 0} {
+    return [::coco_capture_list_ports_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No list-ports implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "list_ports"]]]]
+}
+
+proc ::coco_capture_bridge::list_offpage_connectors {arg} {
+  if {[llength [info commands ::coco_capture_list_offpage_connectors_impl]] > 0} {
+    return [::coco_capture_list_offpage_connectors_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No list-offpage-connectors implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "list_offpage_connectors"]]]]
+}
+
 proc ::coco_capture_bridge::find_replace {arg} {
   if {[llength [info commands ::coco_capture_find_replace_impl]] > 0} {
     return [::coco_capture_find_replace_impl $arg]
@@ -354,6 +368,12 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     find_text {
       return [find_text [string trim $arg]]
+    }
+    list_ports {
+      return [list_ports $arg]
+    }
+    list_offpage_connectors {
+      return [list_offpage_connectors $arg]
     }
     find_replace {
       return [find_replace $arg]
