@@ -296,6 +296,13 @@ proc ::coco_capture_bridge::list_offpage_connectors {arg} {
   error [::coco_capture_utils::json_error "missing_impl" "No list-offpage-connectors implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "list_offpage_connectors"]]]]
 }
 
+proc ::coco_capture_bridge::find_replace {arg} {
+  if {[llength [info commands ::coco_capture_find_replace_impl]] > 0} {
+    return [::coco_capture_find_replace_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No find-replace implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_replace"]]]]
+}
+
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
@@ -367,6 +374,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     list_offpage_connectors {
       return [list_offpage_connectors $arg]
+    }
+    find_replace {
+      return [find_replace $arg]
     }
 
     default {
