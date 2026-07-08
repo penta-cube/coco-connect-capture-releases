@@ -282,6 +282,13 @@ proc ::coco_capture_bridge::find_text {query} {
   error [::coco_capture_utils::json_error "missing_impl" "No find-text implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_text"]]]]
 }
 
+proc ::coco_capture_bridge::find_replace {arg} {
+  if {[llength [info commands ::coco_capture_find_replace_impl]] > 0} {
+    return [::coco_capture_find_replace_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No find-replace implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_replace"]]]]
+}
+
 proc ::coco_capture_bridge::dispatch {cmd arg} {
   switch -- $cmd {
     ping {
@@ -347,6 +354,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     find_text {
       return [find_text [string trim $arg]]
+    }
+    find_replace {
+      return [find_replace $arg]
     }
 
     default {
