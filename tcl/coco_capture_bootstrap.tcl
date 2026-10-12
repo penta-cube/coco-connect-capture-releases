@@ -33,7 +33,7 @@ proc ::coco_capture_bridge::load_default_impl {} {
 
   set dir [file normalize [file dirname [info script]]]
   set loaded_any 0
-  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl get_text_objects.tcl rename_offpage.tcl change_offpage_direction.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
+  foreach impl_name {utils.tcl highlight.tcl property.tcl find_replace.tcl list_ports.tcl list_offpage_connectors.tcl get_text_objects.tcl rename_offpage.tcl change_offpage_direction.tcl draw_primitive.tcl move.tcl net.tcl auto_arrange_text.tcl zoom.tcl} {
     set impl_file [file join $dir $impl_name]
     if {![file exists $impl_file]} {
       continue
@@ -282,6 +282,13 @@ proc ::coco_capture_bridge::find_text {query} {
   error [::coco_capture_utils::json_error "missing_impl" "No find-text implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "find_text"]]]]
 }
 
+proc ::coco_capture_bridge::draw_primitive {arg} {
+  if {[llength [info commands ::coco_capture_draw_primitive_impl]] > 0} {
+    return [::coco_capture_draw_primitive_impl $arg]
+  }
+  error [::coco_capture_utils::json_error "missing_impl" "No draw-primitive implementation found" [::coco_capture_utils::json_object_from_pairs [list [::coco_capture_utils::json_field_string command "draw_primitive"]]]]
+}
+
 proc ::coco_capture_bridge::change_offpage_direction {arg} {
   if {[llength [info commands ::coco_capture_change_offpage_direction_impl]] > 0} {
     return [::coco_capture_change_offpage_direction_impl $arg]
@@ -392,6 +399,9 @@ proc ::coco_capture_bridge::dispatch {cmd arg} {
     }
     change_offpage_direction {
       return [change_offpage_direction $arg]
+    }
+    draw_primitive {
+      return [draw_primitive $arg]
     }
     rename_offpage_connectors {
       return [rename_offpage_connectors $arg]
