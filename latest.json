@@ -1,0 +1,93 @@
+{
+  "version": "v0.1.5",
+  "source_repository": "penta-cube/coco-connect-capture",
+  "source_sha": "6af621d22c15ca3c972fa07707d8dac93e2baa59",
+  "schematic_model_sha": null,
+  "runtime_repository_sha": "ae8ff16b76412d7421f9effdeeb6345b48554547",
+  "platforms": [
+    "windows-x64"
+  ],
+  "validation": "local tests, release build, package smoke",
+  "assets": [
+    {
+      "name": "auto_arrange_text.tcl",
+      "bytes": 10990,
+      "sha256": "366a3401a22ead465c517edb8315a2ae33a65932070b40bf2de236aec9828c3f"
+    },
+    {
+      "name": "change_offpage_direction.tcl",
+      "bytes": 7790,
+      "sha256": "3c4baffae14510899b46f8dbe671961c35f70eaa2740d1ae9cff0af370b64856"
+    },
+    {
+      "name": "coco-connect-capture-windows-x64.zip",
+      "bytes": 1401868,
+      "sha256": "5b207f57fcfa82702f66afee61d6ceb090a5963a60fb4a9e193f580bf9957fd3"
+    },
+    {
+      "name": "coco-connect-capture.exe",
+      "bytes": 3780608,
+      "sha256": "dbd05376fb0c3156dc60e278123f709a9b69bd12a68ffd4c320b828c75876e78"
+    },
+    {
+      "name": "coco_capture_bootstrap.tcl",
+      "bytes": 22770,
+      "sha256": "f1a628e5a3d9dcd536b49157025d0ef7ed58d042b46ec408bd0793f001c49b2c"
+    },
+    {
+      "name": "find_replace.tcl",
+      "bytes": 19454,
+      "sha256": "3f35a480f9727357a45b125598c3612d3a17387a95ef1592e82ebdfdf9fd7075"
+    },
+    {
+      "name": "get_text_objects.tcl",
+      "bytes": 5570,
+      "sha256": "0e28597aeddd8cddcfa3fbd4dde19e06ee383dce23ed0a839dc991d8e8559efb"
+    },
+    {
+      "name": "highlight.tcl",
+      "bytes": 22910,
+      "sha256": "b9d6fc3fbcb9f9315244d2440b23a468819f7498f274d9d76e56ae58035d8b30"
+    },
+    {
+      "name": "list_offpage_connectors.tcl",
+      "bytes": 1062,
+      "sha256": "853255fe53d00e6080afe9cddf6c892ca6cdd46a96d8e0fe1a58d13a114a8949"
+    },
+    {
+      "name": "list_ports.tcl",
+      "bytes": 7896,
+      "sha256": "f733c4decb40b443259f2d47ca827edfc216652b6977bcf82bf5d84fb6757153"
+    },
+    {
+      "name": "move.tcl",
+      "bytes": 20778,
+      "sha256": "b980cf1b695c1ca9e02444ede2d8f4575cb1024ab7701e67889a47968e70fff9"
+    },
+    {
+      "name": "net.tcl",
+      "bytes": 6144,
+      "sha256": "ef0963053017e15237dd9c101a9f9d4149f20f0ae2df9718e3bc8a0c7559c60a"
+    },
+    {
+      "name": "property.tcl",
+      "bytes": 42431,
+      "sha256": "b1f6b09a63c3010c6265f34018611219cec8d61e0f798ade255ca7a276d7ccc9"
+    },
+    {
+      "name": "rename_offpage.tcl",
+      "bytes": 9277,
+      "sha256": "d7a168df8f5efecc6b22c540de0db3a5425c047b6b34c888904dcaa022ed8708"
+    },
+    {
+      "name": "utils.tcl",
+      "bytes": 6828,
+      "sha256": "1c87a75fa87ab0bd70a2f9bd31f2922d56be381357d7acc33cc1aadfd649f4e6"
+    },
+    {
+      "name": "zoom.tcl",
+      "bytes": 3940,
+      "sha256": "64c87ce28f1b33b97c17399b4827cb28b991332dfd606ac4029b3f525912071e"
+    }
+  ]
+}
